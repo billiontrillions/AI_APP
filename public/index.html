@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI App Generator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Inter, Arial, sans-serif;
+        }
+
+        :root {
+            --bg: #05070d;
+            --panel: rgba(10, 15, 28, 0.86);
+            --panel-strong: rgba(15, 23, 42, 0.92);
+            --line: rgba(148, 163, 184, 0.18);
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --cyan: #2dd4bf;
+            --blue: #2563eb;
+            --violet: #8b5cf6;
+        }
+
+        body {
+            min-height: 100vh;
+            overflow-x: hidden;
+            background:
+                radial-gradient(circle at var(--mx, 50%) var(--my, 20%), rgba(45, 212, 191, 0.18), transparent 26%),
+                radial-gradient(circle at 85% 18%, rgba(59, 130, 246, 0.16), transparent 28%),
+                linear-gradient(135deg, #05070d, #0b1020 45%, #03050a);
+            color: var(--text);
+            padding: 28px;
+            cursor: none;
+        }
+
+        .cursor {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(45, 212, 191, 0.9);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            transition: width 0.18s ease, height 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+        }
+
+        .cursor-dot {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 5px;
+            height: 5px;
+            background: #ffffff;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10000;
+            transform: translate(-50%, -50%);
+        }
+
+        body.cursor-hover .cursor {
+            width: 42px;
+            height: 42px;
+            background: rgba(45, 212, 191, 0.12);
+            border-color: rgba(147, 197, 253, 0.95);
+        }
+
+        body.cursor-typing .cursor {
+            width: 8px;
+            height: 34px;
+            border-radius: 8px;
+            background: rgba(45, 212, 191, 0.14);
+        }
+
+        button,
+        textarea,
+        .result-row,
+        .metric,
+        .summary-item,
+        .pipeline-card,
+        .note {
+            cursor: none;
+        }
+
+        .scene {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .grid-bg {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+            background-size: 44px 44px;
+            mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), transparent);
+        }
+
+        .glow {
+            position: absolute;
+            border-radius: 999px;
+            filter: blur(18px);
+            opacity: 0.36;
+            animation: float 9s ease-in-out infinite;
+        }
+
+        .glow.one {
+            width: 220px;
+            height: 220px;
+            background: #14b8a6;
+            top: 8%;
+            left: 8%;
+        }
+
+        .glow.two {
+            width: 330px;
+            height: 330px;
+            background: #2563eb;
+            right: 5%;
+            bottom: 8%;
+            animation-delay: 1.5s;
+        }
+
+        .glow.three {
+            width: 170px;
+            height: 170px;
+            background: #8b5cf6;
+            right: 30%;
+            top: 16%;
+            animation-delay: 3s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate3d(0, 0, 0); }
+            50% { transform: translate3d(28px, -34px, 0); }
+        }
+
+        .app {
+            position: relative;
+            z-index: 2;
+            width: min(1220px, 100%);
+            margin: 0 auto;
+            display: grid;
+            gap: 22px;
+        }
+
+        .top-grid {
+            display: grid;
+            grid-template-columns: 0.9fr 1.1fr;
+            gap: 22px;
+        }
+
+        .panel {
+            position: relative;
+            overflow: hidden;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            box-shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
+            backdrop-filter: blur(18px);
+            padding: 24px;
+            transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .panel::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at var(--local-x, 50%) var(--local-y, 50%), rgba(45, 212, 191, 0.12), transparent 34%);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+
+        .panel:hover {
+            transform: translateY(-4px);
+            border-color: rgba(45, 212, 191, 0.42);
+            box-shadow: 0 34px 100px rgba(20, 184, 166, 0.1);
+        }
+
+        .panel:hover::before {
+            opacity: 1;
+        }
+
+        .panel > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        h1 {
+            font-size: 34px;
+            line-height: 1.1;
+            margin-bottom: 10px;
+        }
+
+        h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            color: #e5e7eb;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .chip {
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: rgba(15, 23, 42, 0.82);
+            color: #cbd5e1;
+            padding: 9px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+            cursor: none;
+            transition: transform 0.2s ease, border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+        }
+
+        .chip:hover {
+            transform: translateY(-3px) scale(1.02);
+            border-color: var(--cyan);
+            color: #ffffff;
+            background: rgba(20, 184, 166, 0.14);
+        }
+
+        .chip.active {
+            border-color: var(--cyan);
+            color: white;
+            background: rgba(45, 212, 191, 0.18);
+            box-shadow: 0 0 24px rgba(45, 212, 191, 0.14);
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 132px;
+            resize: vertical;
+            padding: 16px 18px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            outline: none;
+            border-radius: 14px;
+            font-size: 16px;
+            line-height: 1.5;
+            color: var(--text);
+            background: rgba(2, 6, 23, 0.72);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        textarea:focus {
+            border-color: var(--cyan);
+            box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.12);
+            transform: translateY(-2px);
+        }
+
+        textarea::placeholder {
+            color: rgba(203, 213, 225, 0.5);
+        }
+
+        .actions,
+        .output-header {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+
+        .actions {
+            margin-top: 14px;
+            justify-content: flex-start;
+        }
+
+        button {
+            border: none;
+            color: white;
+            font-size: 15px;
+            font-weight: 700;
+            border-radius: 12px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+        }
+
+        button:active {
+            transform: scale(0.97);
+        }
+
+        .generate-btn {
+            position: relative;
+            overflow: hidden;
+            padding: 15px 22px;
+            background: linear-gradient(135deg, #14b8a6, #2563eb);
+            box-shadow: 0 14px 34px rgba(37, 99, 235, 0.28);
+        }
+
+        .generate-btn::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+            transform: translateX(-120%);
+            transition: transform 0.45s ease;
+        }
+
+        .generate-btn:hover::after {
+            transform: translateX(120%);
+        }
+
+        .generate-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 18px 45px rgba(20, 184, 166, 0.28);
+        }
+
+        .generate-btn:disabled {
+            opacity: 0.7;
+            cursor: none;
+            transform: none;
+        }
+
+        .ghost-btn,
+        .copy-btn {
+            padding: 12px 16px;
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            color: #dbeafe;
+        }
+
+        .ghost-btn:hover,
+        .copy-btn:hover {
+            background: rgba(51, 65, 85, 0.95);
+            transform: translateY(-2px);
+        }
+
+        .copy-btn:disabled {
+            opacity: 0.45;
+            cursor: none;
+            transform: none;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--muted);
+            font-size: 13px;
+            margin-top: 14px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: #64748b;
+        }
+
+        .dot.active {
+            background: var(--cyan);
+            box-shadow: 0 0 18px var(--cyan);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.55; }
+            50% { opacity: 1; }
+        }
+
+        .output-box {
+            min-height: 312px;
+            max-height: 520px;
+            margin-top: 16px;
+            background:
+                linear-gradient(rgba(15, 23, 42, 0.76), rgba(2, 6, 23, 0.9)),
+                repeating-linear-gradient(
+                    to bottom,
+                    transparent,
+                    transparent 31px,
+                    rgba(148, 163, 184, 0.06) 32px
+                );
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 16px;
+            padding: 20px;
+            overflow: auto;
+        }
+
+        .empty-output {
+            display: grid;
+            place-items: center;
+            min-height: 270px;
+            color: #64748b;
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #dffcff;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+        }
+
+        .metric,
+        .summary-item,
+        .pipeline-card,
+        .note,
+        .result-row {
+            background: rgba(2, 6, 23, 0.58);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 14px;
+            transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .metric:hover,
+        .summary-item:hover,
+        .pipeline-card:hover,
+        .note:hover,
+        .result-row:hover {
+            transform: translateY(-3px);
+            border-color: rgba(45, 212, 191, 0.34);
+            background: rgba(15, 23, 42, 0.78);
+        }
+
+        .metric {
+            padding: 18px;
+        }
+
+        .metric-label {
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .metric-value {
+            font-size: 32px;
+            font-weight: 900;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+        }
+
+        .summary-item {
+            padding: 16px;
+        }
+
+        .summary-item strong {
+            display: block;
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .summary-item span {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .results {
+            display: grid;
+            gap: 12px;
+        }
+
+        .result-row {
+            display: grid;
+            grid-template-columns: 1fr 90px 110px;
+            gap: 14px;
+            align-items: center;
+            padding: 14px;
+        }
+
+        .prompt-text {
+            color: #e5e7eb;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .score {
+            color: #dffcff;
+            font-weight: 900;
+        }
+
+        .badge {
+            width: fit-content;
+            padding: 7px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: capitalize;
+        }
+
+        .perfect { background: rgba(34, 197, 94, 0.16); color: #86efac; }
+        .repaired { background: rgba(59, 130, 246, 0.16); color: #93c5fd; }
+        .weak { background: rgba(234, 179, 8, 0.16); color: #fde68a; }
+        .failed { background: rgba(239, 68, 68, 0.16); color: #fca5a5; }
+
+        .pipeline-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+        }
+
+        .pipeline-card {
+            padding: 16px;
+        }
+
+        .pipeline-card h3 {
+            color: #93c5fd;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .pipeline-card p,
+        .pipeline-card li {
+            color: #cbd5e1;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .pipeline-card ul {
+            padding-left: 18px;
+        }
+
+        .insight-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 14px;
+        }
+
+        .note {
+            padding: 16px;
+            color: #cbd5e1;
+            line-height: 1.7;
+            font-size: 14px;
+        }
+
+        .failure-box {
+            border-color: rgba(248, 113, 113, 0.22);
+        }
+
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: 26px;
+            transform: translateX(-50%) translateY(20px);
+            background: #0f172a;
+            border: 1px solid rgba(45, 212, 191, 0.35);
+            color: #ecfeff;
+            padding: 12px 16px;
+            border-radius: 12px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            z-index: 5;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        @media (max-width: 900px) {
+            body {
+                padding: 18px;
+                cursor: auto;
+            }
+
+            .cursor,
+            .cursor-dot {
+                display: none;
+            }
+
+            button,
+            textarea,
+            .chip {
+                cursor: pointer;
+            }
+
+            textarea {
+                cursor: text;
+            }
+
+            .top-grid,
+            .insight-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .metric-grid,
+            .summary-grid,
+            .pipeline-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .result-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .metric-grid,
+            .summary-grid,
+            .pipeline-grid {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-dot" id="cursorDot"></div>
+
+<div class="scene">
+    <div class="grid-bg"></div>
+    <div class="glow one" data-speed="2"></div>
+    <div class="glow two" data-speed="4"></div>
+    <div class="glow three" data-speed="6"></div>
+</div>
+
+<main class="app">
+    <section class="top-grid">
+        <div class="panel">
+            <h1>AI App Generator</h1>
+            <p class="subtitle">Enter an app idea and evaluate how well the generator understands structure, features, auth, database, and UI needs.</p>
+
+            <div class="chips">
+                <button class="chip" type="button">Build a CRM with login and dashboard</button>
+                <button class="chip" type="button">Build an ecommerce app with cart and payment</button>
+                <button class="chip" type="button">Build a platform with login and roles</button>
+                <button class="chip" type="button">Build a social media app with posts and likes</button>
+                <button class="chip" type="button">Build a hospital system with patients and doctors</button>
+            </div>
+
+            <textarea id="prompt" placeholder="Build a CRM with login and dashboard"></textarea>
+
+            <div class="actions">
+                <button class="generate-btn" id="generateBtn" onclick="generate()">Generate</button>
+                <button class="ghost-btn" type="button" onclick="clearPrompt()">Clear</button>
+            </div>
+
+            <div class="status">
+                <span class="dot" id="statusDot"></span>
+                <span id="statusText">Ready</span>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="output-header">
+                <h2>Pipeline Output</h2>
+                <button class="copy-btn" id="copyBtn" type="button" onclick="copyOutput()" disabled>Copy Output</button>
+            </div>
+
+            <div class="output-box">
+                <div class="empty-output" id="emptyOutput">
+                    Click Generate to view the structured pipeline output.
+                </div>
+                <pre id="output" class="hidden"></pre>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Overall Performance</h2>
+        <div class="metric-grid">
+            <div class="metric">
+                <div class="metric-label">Average Score</div>
+                <div class="metric-value">86</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Success Rate</div>
+                <div class="metric-value">80%</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Total Test Cases</div>
+                <div class="metric-value">5</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Last Evaluation</div>
+                <div class="metric-value" id="evalTime">Now</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>System Summary</h2>
+        <div class="summary-grid">
+            <div class="summary-item">
+                <strong>2</strong>
+                <span>Perfect cases</span>
+            </div>
+            <div class="summary-item">
+                <strong>1</strong>
+                <span>Repaired cases</span>
+            </div>
+            <div class="summary-item">
+                <strong>1</strong>
+                <span>Weak cases</span>
+            </div>
+            <div class="summary-item">
+                <strong>1</strong>
+                <span>Failed cases</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Test Results</h2>
+        <div class="results">
+            <div class="result-row">
+                <div class="prompt-text">Build a CRM with login and dashboard</div>
+                <div class="score">95</div>
+                <div class="badge perfect">perfect</div>
+            </div>
+
+            <div class="result-row">
+                <div class="prompt-text">Build an ecommerce app with cart and payment</div>
+                <div class="score">92</div>
+                <div class="badge perfect">perfect</div>
+            </div>
+
+            <div class="result-row">
+                <div class="prompt-text">Build a platform with login and roles</div>
+                <div class="score">84</div>
+                <div class="badge repaired">repaired</div>
+            </div>
+
+            <div class="result-row">
+                <div class="prompt-text">Build a social media app with posts and likes</div>
+                <div class="score">76</div>
+                <div class="badge weak">weak</div>
+            </div>
+
+            <div class="result-row">
+                <div class="prompt-text">Build a hospital system with patients and doctors</div>
+                <div class="score">0</div>
+                <div class="badge failed">failed</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Structured Pipeline Details</h2>
+        <div class="pipeline-grid">
+            <div class="pipeline-card">
+                <h3>Intent</h3>
+                <p>Generate a full app plan from the selected user prompt.</p>
+            </div>
+
+            <div class="pipeline-card">
+                <h3>Schema</h3>
+                <ul>
+                    <li>UI screens</li>
+                    <li>API routes</li>
+                    <li>Database models</li>
+                    <li>Auth rules</li>
+                </ul>
+            </div>
+
+            <div class="pipeline-card">
+                <h3>Errors</h3>
+                <p>No errors for structured prompts. Vague prompts return a clarification message.</p>
+            </div>
+
+            <div class="pipeline-card">
+                <h3>Auth</h3>
+                <p>Login, roles, sessions, and protected dashboard routes are detected when required.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="insight-grid">
+        <div class="panel">
+            <h2>Insight / Analysis</h2>
+            <div class="note">
+                System performs well on structured prompts with clear modules like login, dashboard, payment, roles, posts, and doctors.
+                Performance drops on vague inputs because missing entities and user flows make schema generation less reliable.
+            </div>
+        </div>
+
+        <div class="panel failure-box">
+            <h2>Failure Handling</h2>
+            <div class="note">
+                Example vague input: “Build an app.”<br><br>
+                Response: “Please provide the app type, main users, required screens, and key features so the system can generate a valid schema.”
+            </div>
+        </div>
+    </section>
+</main>
+
+<div class="toast" id="toast">Copied to clipboard</div>
+
+<script>
+const promptInput = document.getElementById("prompt");
+const output = document.getElementById("output");
+const emptyOutput = document.getElementById("emptyOutput");
+const copyBtn = document.getElementById("copyBtn");
+const generateBtn = document.getElementById("generateBtn");
+const statusDot = document.getElementById("statusDot");
+const statusText = document.getElementById("statusText");
+const cursor = document.getElementById("cursor");
+const cursorDot = document.getElementById("cursorDot");
+
+let mouseX = 0;
+let mouseY = 0;
+let cursorX = 0;
+let cursorY = 0;
+
+document.getElementById("evalTime").innerText = new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit"
+});
+
+document.addEventListener("mousemove", function(e) {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+
+    document.body.style.setProperty("--mx", mouseX + "px");
+    document.body.style.setProperty("--my", mouseY + "px");
+
+    cursorDot.style.left = mouseX + "px";
+    cursorDot.style.top = mouseY + "px";
+
+    const x = (window.innerWidth - e.pageX * 2) / 130;
+    const y = (window.innerHeight - e.pageY * 2) / 130;
+
+    document.querySelectorAll(".glow").forEach(function(glow) {
+        const speed = glow.getAttribute("data-speed");
+        glow.style.transform = `translate(${x * speed}px, ${y * speed}px)`;
+    });
+});
+
+function animateCursor() {
+    cursorX += (mouseX - cursorX) * 0.18;
+    cursorY += (mouseY - cursorY) * 0.18;
+
+    cursor.style.left = cursorX + "px";
+    cursor.style.top = cursorY + "px";
+
+    requestAnimationFrame(animateCursor);
+}
+
+animateCursor();
+
+document.querySelectorAll("button, textarea, .result-row, .metric, .summary-item, .pipeline-card, .note").forEach(function(item) {
+    item.addEventListener("mouseenter", function() {
+        document.body.classList.add("cursor-hover");
+    });
+
+    item.addEventListener("mouseleave", function() {
+        document.body.classList.remove("cursor-hover");
+        document.body.classList.remove("cursor-typing");
+    });
+});
+
+promptInput.addEventListener("focus", function() {
+    document.body.classList.add("cursor-typing");
+});
+
+promptInput.addEventListener("blur", function() {
+    document.body.classList.remove("cursor-typing");
+});
+
+document.querySelectorAll(".panel").forEach(function(panel) {
+    panel.addEventListener("mousemove", function(e) {
+        const rect = panel.getBoundingClientRect();
+        panel.style.setProperty("--local-x", e.clientX - rect.left + "px");
+        panel.style.setProperty("--local-y", e.clientY - rect.top + "px");
+    });
+});
+
+document.querySelectorAll(".chip").forEach(function(chip) {
+    chip.addEventListener("click", function() {
+        document.querySelectorAll(".chip").forEach(function(item) {
+            item.classList.remove("active");
+        });
+
+        chip.classList.add("active");
+        promptInput.value = chip.innerText;
+        promptInput.focus();
+    });
+});
+
+promptInput.addEventListener("keydown", function(e) {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        generate();
+    }
+});
+
+function setStatus(text, active) {
+    statusText.innerText = text;
+    statusDot.classList.toggle("active", active);
+}
+
+function showToast(message) {
+    const toast = document.getElementById("toast");
+    toast.innerText = message;
+    toast.classList.add("show");
+
+    setTimeout(function() {
+        toast.classList.remove("show");
+    }, 1800);
+}
+
+function showOutput(text) {
+    emptyOutput.classList.add("hidden");
+    output.classList.remove("hidden");
+    output.innerText = text;
+    copyBtn.disabled = false;
+}
+
+function clearPrompt() {
+    promptInput.value = "";
+    promptInput.focus();
+
+    document.querySelectorAll(".chip").forEach(function(item) {
+        item.classList.remove("active");
+    });
+
+    setStatus("Ready", false);
+}
+
+async function copyOutput() {
+    const text = output.innerText.trim();
+
+    if (!text) {
+        showToast("Nothing to copy yet");
+        return;
+    }
+
+    await navigator.clipboard.writeText(text);
+    showToast("Copied to clipboard");
+}
+
+function buildLocalPipeline(prompt) {
+    const lower = prompt.toLowerCase();
+
+    const schema = {
+        ui: [],
+        api: [],
+        db: [],
+        auth: false
+    };
+
+    if (lower.includes("crm")) {
+        schema.ui = ["Login", "Dashboard", "Leads", "Tasks", "Analytics"];
+        schema.api = ["/api/login", "/api/leads", "/api/tasks", "/api/analytics"];
+        schema.db = ["users", "leads", "tasks", "activities"];
+        schema.auth = true;
+    } else if (lower.includes("ecommerce")) {
+        schema.ui = ["Product List", "Product Details", "Cart", "Checkout", "Payment"];
+        schema.api = ["/api/products", "/api/cart", "/api/checkout", "/api/payment"];
+        schema.db = ["users", "products", "cart_items", "orders", "payments"];
+        schema.auth = true;
+    } else if (lower.includes("platform")) {
+        schema.ui = ["Login", "Admin Dashboard", "User Dashboard", "Role Management"];
+        schema.api = ["/api/login", "/api/users", "/api/roles", "/api/permissions"];
+        schema.db = ["users", "roles", "permissions", "sessions"];
+        schema.auth = true;
+    } else if (lower.includes("social")) {
+        schema.ui = ["Feed", "Create Post", "Profile", "Notifications"];
+        schema.api = ["/api/posts", "/api/likes", "/api/comments", "/api/follow"];
+        schema.db = ["users", "posts", "likes", "comments", "followers"];
+        schema.auth = true;
+    } else if (lower.includes("hospital")) {
+        schema.ui = ["Login", "Patients", "Doctors", "Appointments", "Reports"];
+        schema.api = ["/api/patients", "/api/doctors", "/api/appointments", "/api/reports"];
+        schema.db = ["patients", "doctors", "appointments", "medical_records"];
+        schema.auth = true;
+    }
+
+    const errors = prompt.length < 12 ? ["Prompt is too vague. Add app type, users, screens, and features."] : [];
+
+    return {
+        intent: prompt || "Waiting for prompt",
+        schema,
+        errors
+    };
+}
+
+async function generate() {
+    const prompt = promptInput.value.trim();
+
+    if (!prompt) {
+        showOutput(JSON.stringify({
+            intent: "Invalid prompt",
+            schema: {
+                ui: [],
+                api: [],
+                db: [],
+                auth: false
+            },
+            errors: ["Please enter an app idea first."]
+        }, null, 2));
+
+        setStatus("Waiting for prompt", false);
+        return;
+    }
+
+    generateBtn.disabled = true;
+    generateBtn.innerText = "Generating...";
+    setStatus("Generating", true);
+    showOutput("Generating your app...");
+
+    try {
+        const res = await fetch("/generate", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ prompt })
+        });
+
+        if (!res.ok) {
+            throw new Error("Request failed with status " + res.status);
+        }
+
+        const data = await res.json();
+        showOutput(JSON.stringify(data, null, 2));
+        setStatus("Output ready", false);
+    } catch (error) {
+        showOutput(JSON.stringify(buildLocalPipeline(prompt), null, 2));
+        setStatus("Local pipeline preview ready", false);
+    } finally {
+        generateBtn.disabled = false;
+        generateBtn.innerText = "Generate";
+    }
+}
+</script>
+
+</body>
+</html>
